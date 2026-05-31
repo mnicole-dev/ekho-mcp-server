@@ -1,10 +1,10 @@
 {
   "name": "@mnicole-dev/ekho-mcp-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP server for the Ekho API — read/manage tickets and places from any MCP client",
   "type": "module",
   "bin": {
-    "ekho-mcp-server": "./dist/index.js"
+    "ekho-mcp-server": "dist/index.js"
   },
   "files": [
     "dist",
