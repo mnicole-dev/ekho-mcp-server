@@ -12,7 +12,10 @@ MCP server for the [Ekho](https://ekho.ovh) API — manage support tickets and r
 | `tickets.comment`   | Post a public comment (notifies the original reporter).                      |
 | `tickets.setStatus` | Move a ticket to `open` or `in_progress`. Closure is via GitHub (see below). |
 | **Places**          |                                                                              |
-| `places.view`       | Full details of a place by id (name, type, district, coordinates, …).        |
+| `places.list`       | Paginated list — filter by `search`, `quartier`, or `missingCoords`.         |
+| `places.search`     | Convenience wrapper around `places.list` with a `query` parameter.           |
+| `places.view`       | Full details (incl. `directionsUrl` for the mobile "Itinéraire" button).     |
+| `places.updateCoords` | Update a place's GPS coordinates. **Admin role required.**                |
 | `places.history`    | Your own visit history, newest first.                                        |
 | **Check-in**        |                                                                              |
 | `checkin.current`   | Where are *you* currently checked in?                                        |
@@ -20,7 +23,7 @@ MCP server for the [Ekho](https://ekho.ovh) API — manage support tickets and r
 
 > **Why no `tickets.close` ?** Closing a ticket is delegated to the GitHub webhook (issue #143): closing the linked GH issue auto-closes the Ekho ticket and notifies the creator. The MCP intentionally refuses to compete with that.
 
-> **Why no `places.list` / `places.updateCoords` ?** The Ekho API doesn't expose those endpoints yet — tracked in [mnicole-dev/ekho#153](https://github.com/mnicole-dev/ekho/issues/153). They'll land in this MCP's v1.1.
+> **v1.1 (this version)** added `places.list`, `places.search` and `places.updateCoords` once [mnicole-dev/ekho#153](https://github.com/mnicole-dev/ekho/issues/153) landed.
 
 ## Requirements
 

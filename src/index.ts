@@ -68,7 +68,7 @@ function unwrapCollection(payload: any): any[] {
   return [];
 }
 
-const server = new McpServer({ name: 'ekho-mcp-server', version: '1.0.0' });
+const server = new McpServer({ name: 'ekho-mcp-server', version: '1.1.0' });
 
 // ── Tickets ─────────────────────────────────────────────────────────────
 
@@ -193,8 +193,87 @@ server.tool(
 // ── Places ──────────────────────────────────────────────────────────────
 
 server.tool(
+  'places.list',
+  'List places (compact). Filter by `search` (LIKE on name/address), `quartier` slug, or `missingCoords` (true → only places without GPS coords, useful for data cleanup).',
+  {
+    search: z.string().optional(),
+    quartier: z
+      .string()
+      .optional()
+      .describe(
+        'Quartier slug, e.g. vieux_port, la_plaine, cours_julien, endoume, ndm, baille, castellane, baille_castellane, camas',
+      ),
+    missingCoords: z.boolean().optional(),
+    limit: z.number().int().min(1).max(100).default(20).optional(),
+    offset: z.number().int().min(0).default(0).optional(),
+  },
+  async ({ search, quartier, missingCoords, limit, offset }) => {
+    const resp = await apiFetch('/api/places', {
+      params: { search, quartier, missing_coords: missingCoords, limit, offset },
+    });
+    const payload: any = await assertOk(resp, 'places.list');
+    const places = Array.isArray(payload?.places) ? payload.places : [];
+    if (places.length === 0) return textResult('No places matched these filters.');
+    return textResult(
+      [
+        `**${payload.count} place(s)** (limit=${payload.limit}, offset=${payload.offset})`,
+        '',
+        ...places.map((p: any) => {
+          const coords =
+            p.latitude === null || p.longitude === null ? '⚠️ no coords' : `${p.latitude}, ${p.longitude}`;
+          return `- **#${p.id}** *${p.name}* (${p.quartier ?? '—'}) — ${coords} — ${p.address ?? 'no address'}`;
+        }),
+      ].join('\n'),
+    );
+  },
+);
+
+server.tool(
+  'places.search',
+  'Convenience wrapper: search places by name/address. Equivalent to places.list with a search filter.',
+  {
+    query: z.string().min(1),
+    limit: z.number().int().min(1).max(100).default(20).optional(),
+  },
+  async ({ query, limit }) => {
+    const resp = await apiFetch('/api/places', { params: { search: query, limit } });
+    const payload: any = await assertOk(resp, `places.search("${query}")`);
+    const places = Array.isArray(payload?.places) ? payload.places : [];
+    if (places.length === 0) return textResult(`No places matching "${query}".`);
+    return textResult(
+      [
+        `**${payload.count} place(s) matching "${query}"**`,
+        '',
+        ...places.map((p: any) => `- **#${p.id}** *${p.name}* — ${p.address ?? '—'}`),
+      ].join('\n'),
+    );
+  },
+);
+
+server.tool(
+  'places.updateCoords',
+  'Update the GPS coordinates of a place. Both latitude and longitude are required. Admin role only.',
+  {
+    id: z.number().int().positive(),
+    latitude: z.number().gte(-90).lte(90),
+    longitude: z.number().gte(-180).lte(180),
+  },
+  async ({ id, latitude, longitude }) => {
+    const resp = await apiFetch(`/api/places/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ latitude, longitude }),
+    });
+    const payload: any = await assertOk(resp, `places.updateCoords(${id})`);
+    const p = payload?.place ?? {};
+    return textResult(
+      `✓ Place **#${id}** updated — now at \`${p.latitude}, ${p.longitude}\` (${p.title ?? p.name ?? ''}).`,
+    );
+  },
+);
+
+server.tool(
   'places.view',
-  'Show full details of a place by id — name, type, district, coordinates, address, partner status, image URLs.',
+  'Show full details of a place by id — name, type, district, coordinates, address, partner status, image URLs, and direction links.',
   { id: z.number().int().positive() },
   async ({ id }) => {
     const resp = await apiFetch(`/api/places/${id}`);
@@ -208,6 +287,8 @@ server.tool(
         `**Coordinates:** ${p.latitude ?? '∅'}, ${p.longitude ?? '∅'}`,
         `**Address:** ${p.address ?? '—'}`,
         `**Partner:** ${p.isPartner ? 'yes' : 'no'}`,
+        p.directionsUrl ? `**Directions:** ${p.directionsUrl}` : '',
+        p.referenceGoogleMaps ? `**Google Maps ref:** ${p.referenceGoogleMaps}` : '',
         Array.isArray(p.imageUrls) && p.imageUrls.length
           ? '**Images:** ' + p.imageUrls.join(', ')
           : '',
