@@ -68,7 +68,7 @@ function unwrapCollection(payload: any): any[] {
   return [];
 }
 
-const server = new McpServer({ name: 'ekho-mcp-server', version: '1.1.0' });
+const server = new McpServer({ name: 'ekho-mcp-server', version: '1.2.0' });
 
 // ── Tickets ─────────────────────────────────────────────────────────────
 
@@ -168,6 +168,35 @@ server.tool(
         `✓ Comment **#${c.id ?? '?'}** posted on ticket **#${id}** at ${c.createdAt ?? 'now'}.`,
         '',
         '> ' + content.split('\n').join('\n> '),
+      ),
+    );
+  },
+);
+
+server.tool(
+  'tickets.create',
+  'Open a new support ticket. Required: title (5-255 chars) and description (10+ chars). priority defaults to "medium", category to "other". Note: tickets created via this MCP (admin API key) do NOT trigger the GitHub issue webhook — they remain Ekho-internal unless an issue is opened manually.',
+  {
+    title: z.string().min(5).max(255),
+    description: z.string().min(10),
+    priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+    category: z.enum(['bug', 'improvement', 'question', 'other']).optional(),
+  },
+  async ({ title, description, priority, category }) => {
+    const body: Record<string, unknown> = { title, description };
+    if (priority !== undefined) body['priority'] = priority;
+    if (category !== undefined) body['category'] = category;
+    const resp = await apiFetch('/api/tickets', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    const t: any = await assertOk(resp, 'tickets.create');
+    return textResult(
+      md(
+        `✓ Ticket **#${t.id}** créé — **${t.title}**`,
+        '',
+        `**Status:** ${t.status}   **Priority:** ${t.priority}   **Category:** ${t.category}`,
+        `**Created:** ${t.createdAt ?? 'now'}`,
       ),
     );
   },
