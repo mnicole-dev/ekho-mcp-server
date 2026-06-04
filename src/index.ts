@@ -68,7 +68,7 @@ function unwrapCollection(payload: any): any[] {
   return [];
 }
 
-const server = new McpServer({ name: 'ekho-mcp-server', version: '1.2.0' });
+const server = new McpServer({ name: 'ekho-mcp-server', version: '1.3.0' });
 
 // ── Tickets ─────────────────────────────────────────────────────────────
 
@@ -275,6 +275,49 @@ server.tool(
         '',
         ...places.map((p: any) => `- **#${p.id}** *${p.name}* — ${p.address ?? '—'}`),
       ].join('\n'),
+    );
+  },
+);
+
+server.tool(
+  'places.create',
+  'Create a new place (stub). Required: name (1-255 chars), quartier slug, address. Optional: latitude/longitude (must come together, WGS84 bounds), typeTagId (PlaceTag PK). The admin completes rich data (opening hours, ambiance, activities, etc.) via /admin/places/{id}/edit afterward. Admin role only. Rejects duplicates with the same name in the same quartier (409).',
+  {
+    name: z.string().min(1).max(255),
+    quartier: z
+      .enum(['vieux_port', 'endoume', 'cours_julien', 'ndm', 'la_plaine', 'baille', 'castellane', 'baille_castellane', 'camas'])
+      .describe('Quartier slug — see Quartier enum on the backend'),
+    address: z.string().min(1),
+    latitude: z.number().gte(-90).lte(90).optional(),
+    longitude: z.number().gte(-180).lte(180).optional(),
+    typeTagId: z.number().int().positive().optional(),
+  },
+  async ({ name, quartier, address, latitude, longitude, typeTagId }) => {
+    if ((latitude === undefined) !== (longitude === undefined)) {
+      throw new Error('places.create: latitude and longitude must be provided together (or both omitted).');
+    }
+    const body: Record<string, unknown> = { name, quartier, address };
+    if (latitude !== undefined) body['latitude'] = latitude;
+    if (longitude !== undefined) body['longitude'] = longitude;
+    if (typeTagId !== undefined) body['typeTagId'] = typeTagId;
+
+    const resp = await apiFetch('/api/places', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    const payload: any = await assertOk(resp, 'places.create');
+    const p = payload?.place ?? {};
+    const coords =
+      p.latitude !== undefined && p.latitude !== null
+        ? `\`${p.latitude}, ${p.longitude}\``
+        : '⚠️ no coords';
+    return textResult(
+      md(
+        `✓ Place **#${p.id}** créée — **${p.title ?? name}**`,
+        '',
+        `**Quartier:** ${p.district ?? quartier}   **Address:** ${p.address ?? address}`,
+        `**Coords:** ${coords}`,
+      ),
     );
   },
 );
