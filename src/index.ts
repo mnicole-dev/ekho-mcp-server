@@ -68,7 +68,7 @@ function unwrapCollection(payload: any): any[] {
   return [];
 }
 
-const server = new McpServer({ name: 'ekho-mcp-server', version: '1.3.0' });
+const server = new McpServer({ name: 'ekho-mcp-server', version: '1.4.0' });
 
 // ── Tickets ─────────────────────────────────────────────────────────────
 
@@ -339,6 +339,38 @@ server.tool(
     const p = payload?.place ?? {};
     return textResult(
       `✓ Place **#${id}** updated — now at \`${p.latitude}, ${p.longitude}\` (${p.title ?? p.name ?? ''}).`,
+    );
+  },
+);
+
+// ── Encounters (admin-only utilities) ──────────────────────────────────
+
+server.tool(
+  'resonances.force',
+  'Force-create a résonance between two users at a place, bypassing the mutual-discovery requirement. Admin only. Idempotent: returns the existing résonance if one already links the two users. Pushes the Mercure event + FCM notification to both users, useful for QA-testing the notification pipeline without two physical phones present at the same place.',
+  {
+    userAId: z.number().int().positive(),
+    userBId: z.number().int().positive(),
+    placeId: z.number().int().positive(),
+  },
+  async ({ userAId, userBId, placeId }) => {
+    if (userAId === userBId) {
+      throw new Error('resonances.force: userAId and userBId must differ.');
+    }
+    const resp = await apiFetch('/api/admin/resonances/force', {
+      method: 'POST',
+      body: JSON.stringify({ userAId, userBId, placeId }),
+    });
+    const payload: any = await assertOk(resp, 'resonances.force');
+    const r = payload?.resonance ?? {};
+    return textResult(
+      md(
+        `✓ Résonance **#${r.id}** créée — users **#${r.userAId} ↔ #${r.userBId}** au lieu **#${r.placeId}**.`,
+        '',
+        `**Resonated at:** ${r.resonatedAt ?? 'now'}`,
+        '',
+        '_Notifications Mercure + FCM envoyées aux 2 users._',
+      ),
     );
   },
 );
